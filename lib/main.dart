@@ -1,110 +1,87 @@
-import 'package:flutter/material.dart';
-import 'package:english_words/english_words.dart';
+import 'dart:async';
+import 'dart:convert';
 
-void main() => runApp(MyApp());
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+final shibeAmount = 10;
+
+Future<ShibeList> fetchShibes() async {
+  final response =
+      await http.get("https://shibe.online/api/shibes?count=${shibeAmount}");
+  if (response.statusCode == 200) {
+    // If the call to the server was successful, parse the JSON
+    return ShibeList.fromJson(json.decode(response.body));
+  } else {
+    // If that call was not successful, throw an error.
+    throw Exception('Failed to load shibes :(');
+  }
+}
+
+class ShibeList {
+  final List<dynamic> shibes;
+
+  ShibeList({ this.shibes });
+
+  factory ShibeList.fromJson(List<dynamic> parsedJson) {
+    return ShibeList(shibes: parsedJson);
+  }
+}
+
+void main() => runApp(MyApp(shibes: fetchShibes()));
 
 class MyApp extends StatelessWidget {
+  final Future<ShibeList> shibes;
+
+
+  MyApp({Key key, this.shibes}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Startup Name Generator',
+      title: 'Awesome Shibes',
       theme: ThemeData( 
-        primaryColor: Colors.blueGrey,
+        primaryColor: Colors.amber,
+        primaryTextTheme: TextTheme(
+          title: TextStyle(color: Colors.white),
+        )
       ),
-      home: RandomWords(),
-    );
-  }
-}
+      home: Scaffold(
+        appBar: AppBar(title: Text("🐕 Awesome Shibes 🐕")),
+        body: Center(child: FutureBuilder<ShibeList>(
+          future: shibes,
+          builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16.0),
+                  itemCount: shibeAmount,
+                  itemBuilder: (context, i) {
+                    return _buildShibe(snapshot.data.shibes[i]);
+                  }
+                );
+              } else if (snapshot.hasError) {
+                return Text("${snapshot.error}");
+              }
 
-class RandomWordsState extends State<RandomWords> {
-  final List<WordPair> _suggestions = <WordPair>[];
-  final TextStyle _biggerFont = const TextStyle(fontSize: 18.0);
-  final Set<WordPair> _saved = Set<WordPair>();
-  void _pushSaved() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (BuildContext context) {
-          final Iterable<ListTile> tiles = _saved.map(
-            (WordPair pair) {
-              return ListTile(
-                title: Text(
-                  pair.asPascalCase,
-                  style: _biggerFont,
-                ),
-              );
-            }
-          );
-          final List<Widget> divided = ListTile
-            .divideTiles(
-              context: context,
-              tiles: tiles,
-            )
-            .toList();
+              return CircularProgressIndicator();
           
-          return Scaffold(
-            appBar: AppBar(
-              title: Text('Saved Suggestions'),
-            ),
-            body: ListView(children: divided),
-          );
-        },
-      ),
-    );
+          },
+        )
+      )
+    ));
   }
 
-  Widget _buildSuggestions() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemBuilder: /*1*/ (context, i) {
-        if (i.isOdd) return Divider(); /*2*/
 
-        final index = i ~/ 2; /*3*/
-        if (index >= _suggestions.length) {
-          _suggestions.addAll(generateWordPairs().take(10)); /*4*/
-        }
-        return _buildRow(_suggestions[index]);
-      }
-    );
-  }
-
-  Widget _buildRow(WordPair pair) {
-    final bool alreadySaved = _saved.contains(pair); 
+  Widget _buildShibe(String shibeSrc) {
     return ListTile(
-      title: Text(
-        pair.asPascalCase,
-        style: _biggerFont,
+      title: Card(
+        semanticContainer: true,
+        clipBehavior: Clip.antiAliasWithSaveLayer,
+        child: Image.network(
+          shibeSrc,
+          fit: BoxFit.fill,
+        ),
       ),
-      trailing: Icon(
-        alreadySaved ? Icons.favorite : Icons.favorite_border,
-        color: alreadySaved ? Colors.red : null,
-      ),
-      onTap: () {
-        setState(() {
-          if (alreadySaved) {
-            _saved.remove(pair);
-          } else {
-            _saved.add(pair);
-          }
-        });
-      }
     );
   }
-
-  @override
-  Widget build(BuildContext context) {  
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Startup Name Generator'),
-        actions: <Widget>[
-          IconButton(icon: Icon(Icons.list), onPressed: _pushSaved),
-        ],
-      ),
-      body: _buildSuggestions(),
-    );
-  }
-}
-
-class RandomWords extends StatefulWidget {
-  @override
-  RandomWordsState createState() => RandomWordsState();
 }
